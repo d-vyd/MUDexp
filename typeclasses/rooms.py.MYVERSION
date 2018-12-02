@@ -1,0 +1,154 @@
+"""
+Room
+
+Rooms are simple containers that has no location of their own.
+
+"""
+
+from random import randint
+from evennia import DefaultRoom
+from collections import defaultdict
+from evennia.utils import search
+from evennia.utils.utils import (variable_from_module, lazy_property,
+                                 make_iter, to_unicode, is_iter, list_to_string,
+                                 to_str)
+
+class Room(DefaultRoom):
+    """
+    Rooms are like any Object, except their location is None
+    (which is default). They also use basetype_setup() to
+    add locks so they cannot be puppeted or picked up.
+    (to change that, use at_object_creation instead)
+
+    See examples/object.py for a list of
+    properties and methods available on all Objects.
+    """
+    #pass
+
+    # This is the code I added to override the default room description behavior
+    
+    def return_appearance(self, looker, **kwargs):
+        """
+        This formats a description. It is the hook a 'look' command
+        should call.
+        Args:
+            looker (Object): Object doing the looking.
+            **kwargs (dict): Arbitrary, optional arguments for users
+                overriding the call (unused by default).
+        """
+        if not looker:
+            return ""
+
+        # get and identify all objects
+        visible = (con for con in self.contents if con != looker and
+                   con.access(looker, "view"))
+        exits, users, things = [], [], defaultdict(list)
+        for con in visible:
+            key = "["+con.aliases.all()[0]+"] " + con.key    # aliases is a handler. aliases.all() returns a list
+            if con.destination:
+                exits.append(key)  #(key)   #+search_object(key)[0].aliases[0]+")")
+            elif con.has_account:
+                users.append("|c%s|n" % key)
+            else:
+                # things can be pluralized
+                things[key].append(con)
+        
+        # start string with name of location (keep this?)
+        string = "|c%s|n\n" % self.get_display_name(looker)
+        
+        # then add where the player entered from to help orient him/her. cut off the "A" in the door name.
+        if looker.db.doors:
+            string += str(looker.key)+" walks through the "+str(looker.db.doors[-1].key)[2:]+" and arrives in a "
+            desc = self.db.desc[2:]
+        else:
+            desc = self.db.desc
+            
+        if desc:
+            string += "%s" % desc
+ 
+        # initialize dictionary used to describe walls of the room based on looker location       
+        around_room = {}
+        for direction in ['n','s','e','w']:
+            around_room[direction]="a solid wall"
+        
+        # loop through exits and overwrite wall description with exit description--if exists
+        visible = (con for con in self.contents if con != looker and     # not sure why I need to build visible again. but i do.
+                   con.access(looker, "view"))
+        for con in visible:
+            if con.destination: 
+                around_room[con.db.facing]=con.key
+
+        if looker.db.doors:
+            if looker.db.doors[-1].db.facing == "n":
+                left = "w"
+                right = "e"
+                front = "n"
+                back = "s"
+    
+            if looker.db.doors[-1].db.facing == "s":
+                left = "e"
+                right = "w"
+                front = "s"
+                back = "n"
+    
+            if looker.db.doors[-1].db.facing == "e":
+                left = "n"
+                right = "s"
+                front = "e"
+                back = "w"
+                
+            if looker.db.doors[-1].db.facing == "w":
+                left = "s"
+                right = "n"
+                front = "w"
+                back = "e"
+        else:
+            left = "e"
+            right = "w"
+            front = "s"
+            back = "n"            
+
+        if around_room[front]==around_room[left]==around_room[right]=="a solid wall":
+            string += " In front and on both sides are solid walls."   
+            string += " Behind is "+str(around_room[back])+"."            
+
+        elif around_room[front]==around_room[left]=="a solid wall" and around_room[right] != "a solid wall":
+            string += " To the front and left are solid walls."
+            string += " To the right is "+str(around_room[right])+"."      
+            string += " Behind is "+str(around_room[back])+"."            
+            
+        elif around_room[front]==around_room[right]=="a solid wall" and around_room[left] != "a solid wall":
+            string += " To the front and right are solid walls."
+            string += " To the left is "+str(around_room[left])+"."      
+            string += " Behind is "+str(around_room[back])+"."               
+        
+        elif around_room[left]==around_room[right]=="a solid wall" and around_room[front] != "a solid wall":
+            string += " In front is "+str(around_room[left])+"."  
+            string += " To the left and right are solid walls."
+            string += " Behind is "+str(around_room[back])+"."               
+        
+        else:
+            string += " In front is "+str(around_room[front])+"." 
+            string += " To the left is "+str(around_room[left])+"."     
+            string += " To the right is "+str(around_room[right])+"."      
+            string += " Behind is "+str(around_room[back])+"."
+
+        if exits:
+            string += "\n|wExits:|n " + list_to_string(exits)
+        if users or things:
+            # handle pluralization of things (never pluralize users)
+            thing_strings = []
+            for key, itemlist in sorted(things.iteritems()):
+                nitem = len(itemlist)
+                if nitem == 1:
+                    key, _ = itemlist[0].get_numbered_name(nitem, looker, key=key)
+                else:
+                    key = [item.get_numbered_name(nitem, looker, key=key)[1] for item in itemlist][0]
+                thing_strings.append(key)
+
+            string += "\n|wYou see:|n " + list_to_string(users + thing_strings)
+
+        return string
+
+
+
