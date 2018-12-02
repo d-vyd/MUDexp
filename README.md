@@ -1,3 +1,10 @@
+The "world" directory contains several .py files that employ evennia's API to populate the game database with randomly generated rooms, exits, and NPCs. Set the number of elements to be created at the top of each file. Remember that creating 100,000 rooms will take an hour to half a day. I'm still working on measuring performance.
+
+Currently, the files that employ the API conflict with some of the additions I made in the typeclasses. So, the typeclasses (e.g. rooms.py) have been reverted back to evennia defaults. the modified versions are stored as .MYBACKUP files.
+
+Below is the original readme that evennia generates for games.
+
+
 # Welcome to Evennia!
 
 This is your game directory, set up to let you start with
